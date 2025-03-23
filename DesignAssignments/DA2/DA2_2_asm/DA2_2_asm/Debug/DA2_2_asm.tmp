@@ -1,0 +1,32 @@
+<ASSEMBLER_INFO>
+ <VERSION>2.2.8</VERSION>
+ <DEVICE>"ATmega328P"</DEVICE>
+ <WORKING_DIR>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\Debug</WORKING_DIR>
+ <INCLUDE_PATH>
+  <DIR>C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.7.374\avrasm\inc</DIR>
+  <DIR>C:\Program Files (x86)\Atmel\Studio\7.0\toolchain\avr8\avrassembler\Include</DIR>
+  <DIR></DIR>
+ </INCLUDE_PATH>
+ <SOURCE_FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\main.asm</SOURCE_FILE>
+ <INCLUDED_FILES>
+  <FILE>C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.7.374\avrasm\inc\m328Pdef.inc</FILE>
+  <FILE>C:/Program Files (x86)\Atmel\Studio\7.0\Packs\atmel\ATmega_DFP\1.7.374\avrasm\inc\M328Pdef.inc</FILE>
+ </INCLUDED_FILES>
+ <OBJECT_FILES>
+  <FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\Debug\DA2_2_asm.obj</FILE>
+ </OBJECT_FILES>
+ <HEX_FILES>
+  <FILE>DA2_2_asm.hex</FILE>
+ </HEX_FILES>
+ <OUTPUT_FILES>
+  <FILE>DA2_2_asm.map</FILE>
+  <FILE>DA2_2_asm.lss</FILE>
+ </OUTPUT_FILES>
+ <LABELS>
+  <Main><FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\main.asm</FILE><LINE>13</LINE></Main>
+  <Loop><FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\main.asm</FILE><LINE>23</LINE></Loop>
+  <DelayLoop><FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\main.asm</FILE><LINE>33</LINE></DelayLoop>
+  <Delay><FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\main.asm</FILE><LINE>45</LINE></Delay>
+  <Wait><FILE>C:\Users\enriq\Documents\Atmel Studio\7.0\DA2_2_asm\DA2_2_asm\main.asm</FILE><LINE>57</LINE></Wait>
+ </LABELS>
+</ASSEMBLER_INFO>
