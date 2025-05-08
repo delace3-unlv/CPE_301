@@ -5,100 +5,136 @@
  * Author : enriq
  */ 
 
-/*
- * DA4.c
- *
- * Created: 4/5/2025 6:22:31 PM
- * Author : enriq
- */ 
-
-#ifndef F_CPU
 #define F_CPU 16000000UL
-#endif
-
-#define BAUD 9600
-#define UBRR_VALUE ((F_CPU/16/BAUD) - 1)
-
-#define PWM_DDR    DDRD
-#define PWM_PORT   PORTD
-#define PWM_PIN    PD6     // OC0A
-#define INA1_PIN   PD4
-#define INA2_PIN   PD5
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+#include <stdlib.h>
+#include <stdio.h>
 
-volatile uint16_t adc_result = 0;
+// Motor driver pins 
+#define IN1_PIN   PD4
+#define IN2_PIN   PD5
+#define PWM_PIN   PD6
 
-void pwm_init(void) {
-	// 1) Set PD6, PD2, PD3 to outputs
-	PWM_DDR |= (1<<PWM_PIN)|(1<<INA1_PIN)|(1<<INA2_PIN);
+// Variables
+volatile uint16_t icr_last      = 0;
+volatile uint16_t period_counts = 0;
+volatile uint8_t  new_period    = 0;
 
-	// 2) Pick a direction (here: INA1=1, INA2=0 ? “forward”)
-	PWM_PORT |=  (1<<INA1_PIN);
-	PWM_PORT &= ~(1<<INA2_PIN);
+uint8_t set_speed      = 0;  // 0–255, PWM 
+uint8_t measured_speed = 0;  // 0–255, from measurement
 
-	// 3) Timer0 ? Fast?PWM, non-inverting on OC0A
-	//    WGM00=1, WGM01=1 ? Fast PWM; COM0A1=1 ? non-invert
-	TCCR0A = (1<<WGM00)|(1<<WGM01)|(1<<COM0A1);
-	//    CS01=1 ? prescaler = 8
-	TCCR0B = (1<<CS01);
-}
+// UART parsing 
+char    rx_buf[4];
+uint8_t rx_pos         = 0;
+uint8_t override_flag  = 0;
+uint8_t override_speed = 0;
 
-void uart_init() {
-	UBRR0H = (UBRR_VALUE >> 8);
-	UBRR0L = UBRR_VALUE;
-	UCSR0B = (1<<TXEN0);
-	UCSR0C = (1<<UCSZ01)|(1<<UCSZ00);
-}
-
-void uart_send(char c) {
+// UART at 9600 baud 
+static int uart_putchar(char c, FILE *stream) {
 	while (!(UCSR0A & (1<<UDRE0)));
-		UDR0 = c;
+	UDR0 = (uint8_t)c;
+	return 0;
 }
+static FILE uart_str = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE);
 
-void adc_init() {
-	ADMUX = (1<<REFS0); 
-	ADCSRA = (1<<ADEN)|(1<<ADATE)|(1<<ADIE)|(1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0); // Enable ADC, Auto Trigger, Interrupt
-	ADCSRB = 0x00;
-	DIDR0 = (1<<ADC0D); 
-	ADCSRA |= (1<<ADSC); // Start ADC conversion
-}
-
-void timer_init() {
-	TCCR1B |= (1<<WGM12); // CTC Mode
-	OCR1A = 12499;	// OCR1A = 2499; // 10ms
-	TCCR1B |= (1<<CS11)|(1<<CS10); // prescaler 64
-	TIMSK1 |= (1<<OCIE1A); 
-}
-
-ISR(ADC_vect) {
-	adc_result = ADC;
-	OCR0A = (uint8_t)(adc_result >> 2);
-}
-
-ISR(TIMER1_COMPA_vect) {
-	uint16_t mv = (adc_result * 500) / 1023;  // Convert ADC to  millivolts
+void uart_init(void) {
 	
-	uart_send((mv / 10) + '0'); // Send whole number part
-	uart_send('.');
-	uart_send((mv % 10) + '0'); // Send decimal part
-	uart_send('\n');              
+	UBRR0  = F_CPU/16/9600 - 1;
+	UCSR0B = (1<<TXEN0)|(1<<RXEN0);
+	UCSR0C = (1<<UCSZ01)|(1<<UCSZ00);
+	stdout  = &uart_str;
 }
 
+// ADC 
+void adc_init(void) {
+	ADMUX  = (1<<REFS0);                     
+	ADCSRA = (1<<ADEN)|(1<<ADPS2)|(1<<ADPS1); 
+}
+uint16_t adc_read(void) {
+	ADCSRA |= (1<<ADSC);
+	while (ADCSRA & (1<<ADSC));
+	return ADC;
+}
+
+// PWM (PD6)
+void pwm0_init(void) {
+	DDRD  |= (1<<PWM_PIN);
+	TCCR0A = (1<<COM0A1)|(1<<WGM01)|(1<<WGM00); 
+	TCCR0B =  (1<<CS01);                       
+}
+
+// ICP1 (PB0)
+ISR(TIMER1_CAPT_vect) {
+	uint16_t ic = ICR1;
+	period_counts = ic - icr_last;
+	icr_last      = ic;
+	new_period    = 1;
+}
+void icap_init(void) {
+	DDRB   &= ~(1<<PB0);                             
+	TCCR1B  = (1<<ICNC1)|(1<<ICES1)|(1<<CS11);       
+	TIMSK1  = (1<<ICIE1);                            
+}
+
+// Motor direction pins (PD4/PD5)
+void motor_dir_init(void) {
+	DDRD  |= (1<<IN1_PIN)|(1<<IN2_PIN);
+	PORTD |=  (1<<IN1_PIN);  // IN1=1
+	PORTD &= ~(1<<IN2_PIN);  // IN2=0 ? forward
+}
 
 int main(void) {
-	uart_init();
+	motor_dir_init();
+	pwm0_init();
 	adc_init();
-	timer_init();
-	pwm_init();
-	
-	OCR0A = 128;
-	 
-	sei(); // set global interrupt
-	
+	uart_init();
+	icap_init();
+	sei();
+
 	while (1) {
 		
+		if (UCSR0A & (1<<RXC0)) {
+			char c = UDR0;
+			if (c >= '0' && c <= '9' && rx_pos < sizeof(rx_buf) - 1) {
+				rx_buf[rx_pos++] = c;
+			}
+			else if ((c=='\r' || c=='\n') && rx_pos) {
+				rx_buf[rx_pos] = '\0';
+				uint16_t v = atoi(rx_buf);
+				if (v > 255) v = 255;
+				override_speed = (uint8_t)v;
+				override_flag  = 1;
+				rx_pos = 0;
+			}
+		}
+
+		// set_speed
+		if (override_flag) {
+			set_speed = override_speed;
+			} else {
+			uint16_t raw = adc_read();
+			set_speed = raw >> 2;  
+		}
+		OCR0A = set_speed;
+
+		// Update measured_speed 
+		if (new_period) {
+			new_period = 0;
+			if (period_counts) {
+				uint32_t freq = F_CPU/8/period_counts;
+				measured_speed = (freq > 255 ? 255 : (uint8_t)freq);
+				} else {
+				measured_speed = 0;
+			}
+		}
+
+		// Print on BAUD 9600
+		uint16_t temp = ADC;  // last ADC reading
+		printf("%u %u %u\n", temp, set_speed, measured_speed);
+
+
+		_delay_ms(200);
 	}
 }
